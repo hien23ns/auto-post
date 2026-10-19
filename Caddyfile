@@ -1,0 +1,34 @@
+# Caddyfile Reverse Proxy cho AI Auto Video Publisher 24/7
+{
+    # Tùy chọn cấu hình toàn cục
+    email {$ACME_EMAIL:admin@example.com}
+}
+
+{$DOMAIN_NAME:localhost} {
+    # Tự động chuyển tiếp HTTPS tới FastAPI Web Service
+    reverse_proxy web:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Giới hạn kích thước payload tải lên (tối đa 100MB cho video lớn)
+    request_body {
+        max_size 100MB
+    }
+
+    # Security Headers tiêu chuẩn
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Ghi log truy cập
+    log {
+        output stdout
+        format console
+    }
+}

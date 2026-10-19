@@ -1,0 +1,88 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: auto_post_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-app_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-app_secure_password}
+      POSTGRES_DB: ${POSTGRES_DB:-auto_post_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-app_user} -d ${POSTGRES_DB:-auto_post_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - auto_post_net
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auto_post_web
+    restart: unless-stopped
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+    env_file:
+      - .env
+    volumes:
+      - media_data:/app/media
+      - ./assets:/app/assets
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - auto_post_net
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: auto_post_worker
+    restart: unless-stopped
+    command: ["python", "-m", "app.worker"]
+    env_file:
+      - .env
+    volumes:
+      - media_data:/app/media
+      - ./assets:/app/assets
+    depends_on:
+      postgres:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    networks:
+      - auto_post_net
+
+  caddy:
+    image: caddy:2.7-alpine
+    container_name: auto_post_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+    networks:
+      - auto_post_net
+
+volumes:
+  postgres_data:
+  media_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  auto_post_net:
+    driver: bridge

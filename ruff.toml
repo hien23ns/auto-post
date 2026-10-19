@@ -1,0 +1,14 @@
+line-length = 120
+target-version = "py311"
+
+[lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = [
+    "E501",  # line too long (handled by formatter)
+    "UP006", # non-pep585-annotation
+    "UP035", # deprecated import
+    "UP042", # StrEnum recommendation (preserve str, enum.Enum for SQLAlchemy compatibility)
+]
+
+[lint.isort]
+known-first-party = ["app"]
