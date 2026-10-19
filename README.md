@@ -38,8 +38,10 @@
 ---
 
 ## 🏗️ KIẾN TRÚC HỆ THỐNG
-
+ 
 Xem tài liệu chi tiết tại:
+- [HUONG_DAN_MAKE_247_KHONG_CAN_VPS.md](file:///c:/Users/Lenovo/Downloads/auto-post/docs/HUONG_DAN_MAKE_247_KHONG_CAN_VPS.md) - **Hướng dẫn chạy 24/7 trực tiếp trên Make.com mà chưa cần thuê VPS!**
+- [make_standalone_blueprint.json](file:///c:/Users/Lenovo/Downloads/auto-post/docs/make_standalone_blueprint.json) - **File Blueprint 1-click import vào Make.com.**
 - [ARCHITECTURE.md](file:///c:/Users/Lenovo/Downloads/auto-post/ARCHITECTURE.md) - Kiến trúc chi tiết và đặc tả kỹ thuật.
 - [IMPLEMENTATION_PLAN.md](file:///c:/Users/Lenovo/Downloads/auto-post/IMPLEMENTATION_PLAN.md) - Kế hoạch triển khai qua 6 giai đoạn và bảng kiểm toán.
 - [QUICKSTART_VI.md](file:///c:/Users/Lenovo/Downloads/auto-post/QUICKSTART_VI.md) - Hướng dẫn khởi chạy nhanh.

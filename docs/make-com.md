@@ -1,6 +1,10 @@
 # HƯỚNG DẪN CẤU HÌNH MAKE.COM SCENARIO CHO TELEGRAM WEBHOOK
 
-> **Tài liệu hướng dẫn cài đặt kịch bản (Scenario) trên Make.com làm Webhook Gateway trung gian giữa Telegram Bot và FastAPI Backend.**
+> **Tài liệu hướng dẫn cài đặt kịch bản (Scenario) trên Make.com: Hỗ trợ cả 2 chế độ: Chạy độc lập 24/7 trên Make.com (chưa cần thuê VPS) hoặc Chạy kết hợp với VPS.**
+> 
+> 💡 **Bạn chưa có VPS và muốn chạy 24/7 ngay trên Make.com?**
+> 👉 Xem hướng dẫn chi tiết tại: [docs/HUONG_DAN_MAKE_247_KHONG_CAN_VPS.md](file:///c:/Users/Lenovo/Downloads/auto-post/docs/HUONG_DAN_MAKE_247_KHONG_CAN_VPS.md)
+> 📁 File Blueprint mẫu import 1-click vào Make.com: [docs/make_standalone_blueprint.json](file:///c:/Users/Lenovo/Downloads/auto-post/docs/make_standalone_blueprint.json)
 
 ---
 
