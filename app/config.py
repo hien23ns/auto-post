@@ -1,5 +1,6 @@
 """Application configuration module using Pydantic Settings."""
 
+import os
 from functools import lru_cache
 
 from pydantic import Field
@@ -18,7 +19,10 @@ class Settings(BaseSettings):
     ENV: str = Field(default="development", description="Environment: development, staging, production, test")
     APP_NAME: str = Field(default="AI Auto Video Publisher", description="Service application name")
     APP_HOST: str = Field(default="0.0.0.0", description="FastAPI host")
-    APP_PORT: int = Field(default=8000, description="FastAPI port")
+    APP_PORT: int = Field(
+        default_factory=lambda: int(os.getenv("PORT", os.getenv("APP_PORT", "8001"))),
+        description="FastAPI port (defaults to 8001 to prevent conflicts with existing port 8000)",
+    )
     DEBUG: bool = Field(default=False, description="Debug mode")
     TIMEZONE: str = Field(default="Asia/Ho_Chi_Minh", description="Display and business timezone")
 

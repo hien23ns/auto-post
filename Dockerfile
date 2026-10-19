@@ -30,6 +30,7 @@ COPY . .
 # Tạo thư mục chứa media và logs
 RUN mkdir -p /app/media/raw /app/media/processed /app/media/thumbnails /app/data
 
-EXPOSE 8000
+ENV APP_PORT=8001
+EXPOSE 8001
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT:-8001}"]

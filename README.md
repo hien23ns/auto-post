@@ -67,7 +67,7 @@ docker compose up -d --build
 
 ### 3. Kiểm tra trạng thái
 ```bash
-curl http://localhost:8000/health
+curl http://localhost:8001/health
 ```
 
 ---

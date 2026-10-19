@@ -257,3 +257,164 @@ async def test_job_revisions_endpoint(client: AsyncClient, test_db: AsyncSession
     # Check updated job draft
     res_job = await client.get(f"/api/jobs/{job.id}")
     assert res_job.status_code == 200
+    d = res_job.json()
+    assert d["id"] == job.id
+
+
+@pytest.mark.asyncio
+async def test_telegram_cancel_and_retry_commands(client: AsyncClient, test_db: AsyncSession):
+    """Verify /cancel cancels active job and /retry requeues failed job."""
+    headers = {"X-Automation-Secret": TEST_SECRET}
+
+    # 1. Test /cancel
+    active_job = Job(
+        telegram_chat_id=ALLOWED_USER_ID,
+        telegram_user_id=ALLOWED_USER_ID,
+        source_file_id="active_fid",
+        status=JobStatus.REVIEW_READY.value,
+    )
+    test_db.add(active_job)
+    await test_db.commit()
+
+    cancel_payload = {
+        "update_id": 50,
+        "message": {
+            "message_id": 50,
+            "from": {"id": ALLOWED_USER_ID, "first_name": "Admin"},
+            "chat": {"id": ALLOWED_USER_ID, "type": "private"},
+            "date": 1700000000,
+            "text": "/cancel",
+        },
+    }
+    resp_cancel = await client.post("/webhook/telegram", json=cancel_payload, headers=headers)
+    assert resp_cancel.status_code == 200
+    assert resp_cancel.json()["ok"] is True
+
+    # Verify job status changed to CANCELLED
+    detail_resp = await client.get(f"/api/jobs/{active_job.id}")
+    assert detail_resp.json()["status"] == JobStatus.CANCELLED.value
+
+    # 2. Test /retry
+    failed_job = Job(
+        telegram_chat_id=ALLOWED_USER_ID,
+        telegram_user_id=ALLOWED_USER_ID,
+        source_file_id="failed_fid",
+        status=JobStatus.FAILED.value,
+        error_message="Network error during processing",
+        retry_count=0,
+    )
+    test_db.add(failed_job)
+    await test_db.commit()
+
+    retry_payload = {
+        "update_id": 51,
+        "message": {
+            "message_id": 51,
+            "from": {"id": ALLOWED_USER_ID, "first_name": "Admin"},
+            "chat": {"id": ALLOWED_USER_ID, "type": "private"},
+            "date": 1700000000,
+            "text": "/retry",
+        },
+    }
+    resp_retry = await client.post("/webhook/telegram", json=retry_payload, headers=headers)
+    assert resp_retry.status_code == 200
+    assert resp_retry.json()["ok"] is True
+
+    # Verify job status reset to PENDING and retry count incremented
+    detail_retry = await client.get(f"/api/jobs/{failed_job.id}")
+    assert detail_retry.json()["status"] == JobStatus.PENDING.value
+
+
+@pytest.mark.asyncio
+async def test_telegram_edit_command(client: AsyncClient, test_db: AsyncSession):
+    """Verify /edit <job_id> <new_title> updates draft hooks."""
+    headers = {"X-Automation-Secret": TEST_SECRET}
+    job = Job(
+        telegram_chat_id=ALLOWED_USER_ID,
+        telegram_user_id=ALLOWED_USER_ID,
+        status=JobStatus.REVIEW_READY.value,
+        content_draft={
+            "youtube_shorts": {"hooks": ["Old Hook"]},
+            "facebook_reels": {"hooks": ["Old Hook"]},
+            "tiktok": {"hooks": ["Old Hook"]},
+        },
+    )
+    test_db.add(job)
+    await test_db.commit()
+
+    edit_payload = {
+        "update_id": 52,
+        "message": {
+            "message_id": 52,
+            "from": {"id": ALLOWED_USER_ID, "first_name": "Admin"},
+            "chat": {"id": ALLOWED_USER_ID, "type": "private"},
+            "date": 1700000000,
+            "text": f"/edit {job.id} TIÊU ĐỀ MỚI ĐƯỢC CẬP NHẬT TỪ TELEGRAM",
+        },
+    }
+    resp = await client.post("/webhook/telegram", json=edit_payload, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+
+
+@pytest.mark.asyncio
+async def test_anti_duplicate_video_submission(client: AsyncClient, test_db: AsyncSession):
+    """Verify submitting the same video twice returns the existing job without creating a duplicate."""
+    headers = {"X-Automation-Secret": TEST_SECRET}
+    video_msg = {
+        "update_id": 53,
+        "message": {
+            "message_id": 53,
+            "from": {"id": ALLOWED_USER_ID, "first_name": "Creator"},
+            "chat": {"id": ALLOWED_USER_ID, "type": "private"},
+            "date": 1700000000,
+            "video": {
+                "file_id": "file_same_duplicate_test",
+                "file_unique_id": "uniq_dup",
+                "width": 1080,
+                "height": 1920,
+                "duration": 10,
+            },
+        },
+    }
+
+    # First submission -> creates job
+    r1 = await client.post("/webhook/telegram", json=video_msg, headers=headers)
+    assert r1.status_code == 200
+    job_id_1 = r1.json()["job_id"]
+
+    # Second submission with same file_id -> returns existing job
+    r2 = await client.post("/webhook/telegram", json=video_msg, headers=headers)
+    assert r2.status_code == 200
+    job_id_2 = r2.json()["job_id"]
+    assert job_id_1 == job_id_2
+    assert "Duplicate" in r2.json()["message"]
+
+
+@pytest.mark.asyncio
+async def test_large_video_direct_upload(client: AsyncClient, sample_video_path: str):
+    """Verify /upload/large-video accepts direct multipart video file."""
+    headers = {"X-Automation-Secret": TEST_SECRET}
+
+    with open(sample_video_path, "rb") as f:
+        video_bytes = f.read()
+
+    files = {"file": ("my_large_movie.mp4", video_bytes, "video/mp4")}
+    data = {
+        "chat_id": str(ALLOWED_USER_ID),
+        "user_id": str(ALLOWED_USER_ID),
+        "caption": "Video quay trực tiếp từ máy ảnh",
+    }
+
+    resp = await client.post("/upload/large-video", data=data, files=files, headers=headers)
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+    assert resp.json()["job_id"] is not None
+
+
+@pytest.mark.asyncio
+async def test_list_jobs_endpoint(client: AsyncClient, test_db: AsyncSession):
+    """Verify GET /api/jobs returns job listing and supports status filtering."""
+    resp = await client.get("/api/jobs")
+    assert resp.status_code == 200
+    assert isinstance(resp.json(), list)

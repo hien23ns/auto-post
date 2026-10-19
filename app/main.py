@@ -3,9 +3,10 @@
 import logging
 import time
 from contextlib import asynccontextmanager
+from datetime import timedelta
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Query, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import desc, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,11 +28,13 @@ from app.schemas import (
     TelegramUpdate,
     WebhookResponse,
 )
+from app.services.ffmpeg_service import ffmpeg_service
 from app.services.scheduler_service import (
     format_vn_time,
     get_current_time_vn,
     parse_schedule_expression,
 )
+from app.services.storage_service import storage_service
 from app.services.telegram_service import telegram_service
 
 logging.basicConfig(
@@ -207,6 +210,30 @@ async def handle_message(msg: Any, db: AsyncSession) -> WebhookResponse:
         file_name = msg.document.file_name or "video.mp4"
 
     if video_file_id:
+        # Anti-duplicate check: see if same video was enqueued recently
+        cutoff = utc_now() - timedelta(hours=2)
+        dup_stmt = (
+            select(Job)
+            .where(Job.source_file_id == video_file_id)
+            .where(Job.created_at >= cutoff)
+            .where(Job.status.notin_([JobStatus.FAILED.value, JobStatus.CANCELLED.value]))
+            .order_by(desc(Job.created_at))
+            .limit(1)
+        )
+        dup_res = await db.execute(dup_stmt)
+        existing_job = dup_res.scalar_one_or_none()
+
+        if existing_job:
+            logger.info(f"Duplicate video submission detected for file_id {video_file_id}. Returning existing Job {existing_job.id}.")
+            await telegram_service.send_message(
+                chat.id,
+                f"ℹ️ <b>VIDEO NÀY ĐÃ ĐƯỢC TIẾP NHẬN TRƯỚC ĐÓ</b>\n"
+                f"🆔 Job ID: <code>{existing_job.id}</code>\n"
+                f"Trạng thái: <b>{existing_job.status}</b>\n"
+                f"<i>Hệ thống tự động ngăn chặn việc nạp trùng video để tiết kiệm chi phí và tài nguyên.</i>",
+            )
+            return WebhookResponse(ok=True, message="Duplicate video detected, existing job returned", job_id=existing_job.id)
+
         logger.info(f"Received video from user {user.id} (file_id: {video_file_id}). Enqueueing job.")
 
         # Create Durable Job in database
@@ -309,6 +336,111 @@ async def handle_command(cmd: str, msg: Any, db: AsyncSession) -> WebhookRespons
             await telegram_service.send_message(chat_id, "\n".join(lines))
         return WebhookResponse(ok=True, message="Sent history")
 
+    elif cmd == "/cancel":
+        # Cancel the active job for this chat
+        active_statuses = [
+            JobStatus.PENDING.value,
+            JobStatus.DOWNLOADING.value,
+            JobStatus.ANALYZING.value,
+            JobStatus.REVIEW_READY.value,
+            JobStatus.SCHEDULED.value,
+        ]
+        stmt = (
+            select(Job)
+            .where(Job.telegram_chat_id == chat_id)
+            .where(Job.status.in_(active_statuses))
+            .order_by(desc(Job.created_at))
+            .limit(1)
+        )
+        res = await db.execute(stmt)
+        active_job = res.scalar_one_or_none()
+        if active_job:
+            active_job.status = JobStatus.CANCELLED.value
+            active_job.locked_at = None
+            active_job.locked_by = None
+            await db.commit()
+            await telegram_service.send_message(
+                chat_id,
+                f"❌ <b>ĐÃ HỦY CÔNG VIỆC THÀNH CÔNG</b>\nJob ID: <code>{active_job.id}</code>",
+            )
+            return WebhookResponse(ok=True, message="Job cancelled", job_id=active_job.id)
+        else:
+            await telegram_service.send_message(chat_id, "ℹ️ Không tìm thấy công việc nào đang hoạt động để hủy.")
+            return WebhookResponse(ok=True, message="No active job to cancel")
+
+    elif cmd == "/retry":
+        # Find latest failed job for this chat
+        stmt = (
+            select(Job)
+            .where(Job.telegram_chat_id == chat_id)
+            .where(Job.status == JobStatus.FAILED.value)
+            .order_by(desc(Job.created_at))
+            .limit(1)
+        )
+        res = await db.execute(stmt)
+        failed_job = res.scalar_one_or_none()
+        if failed_job:
+            failed_job.status = JobStatus.PENDING.value
+            failed_job.retry_count += 1
+            failed_job.error_message = None
+            failed_job.locked_at = None
+            failed_job.locked_by = None
+            await db.commit()
+            await telegram_service.send_message(
+                chat_id,
+                f"🔄 <b>ĐÃ ĐẶT LẠI CÔNG VIỆC</b>\n"
+                f"Job ID: <code>{failed_job.id}</code> đã được đưa lại vào hàng đợi xử lý.\n"
+                f"⚡ Lần thử thứ: {failed_job.retry_count}",
+            )
+            return WebhookResponse(ok=True, message="Job requeued", job_id=failed_job.id)
+        else:
+            await telegram_service.send_message(chat_id, "ℹ️ Không có công việc lỗi nào cần thử lại.")
+            return WebhookResponse(ok=True, message="No failed job to retry")
+
+    elif cmd == "/edit":
+        # Format: /edit <job_id> <new_title_or_hook>
+        parts = msg.text.split(maxsplit=2)
+        if len(parts) < 3:
+            await telegram_service.send_message(
+                chat_id,
+                "ℹ️ <b>CÚ PHÁP SỬA NHANH:</b>\n<code>/edit &lt;job_id&gt; &lt;Tiêu đề/Hook mới&gt;</code>",
+            )
+            return WebhookResponse(ok=False, message="Invalid edit command syntax")
+
+        target_id = parts[1].strip()
+        new_text = parts[2].strip()
+
+        stmt = select(Job).where(Job.id == target_id)
+        res = await db.execute(stmt)
+        target_job = res.scalar_one_or_none()
+        if not target_job:
+            await telegram_service.send_message(chat_id, f"❌ Không tìm thấy Job ID: <code>{target_id}</code>")
+            return WebhookResponse(ok=False, message="Job not found")
+
+        draft = dict(target_job.content_draft or {})
+        for p in ("youtube_shorts", "facebook_reels", "tiktok"):
+            if p in draft and "hooks" in draft[p]:
+                draft[p]["hooks"] = [new_text] + draft[p]["hooks"][1:]
+        target_job.content_draft = draft
+
+        # Save revision
+        rev = JobRevision(
+            job_id=target_job.id,
+            platform="ALL",
+            hook=new_text,
+            caption=None,
+        )
+        db.add(rev)
+        await db.commit()
+
+        await telegram_service.send_message(
+            chat_id,
+            f"✅ <b>ĐÃ CẬP NHẬT TIÊU ĐỀ/HOOK</b>\n"
+            f"Job ID: <code>{target_job.id}</code>\n"
+            f"Tiêu đề mới: <b>{new_text}</b>",
+        )
+        return WebhookResponse(ok=True, message="Title updated", job_id=target_job.id)
+
     return WebhookResponse(ok=True, message="Command recognized")
 
 
@@ -395,12 +527,99 @@ async def handle_callback_query(cb: TelegramCallbackQuery, db: AsyncSession) -> 
         vn_str = format_vn_time(scheduled_utc)
         await telegram_service.answer_callback_query(cb.id, f"Đã lên lịch đăng lúc {vn_str}")
 
+    # 6. Hướng dẫn sửa nội dung
+    elif action == "edit_text":
+        await telegram_service.answer_callback_query(cb.id, "Hướng dẫn sửa nội dung")
+        if cb.message:
+            await telegram_service.send_message(
+                cb.message.chat.id,
+                f"✏️ <b>HƯỚNG DẪN SỬA TIÊU ĐỀ/HOOK NHANH:</b>\n\n"
+                f"Gửi lệnh theo mẫu:\n"
+                f"<code>/edit {job.id} &lt;Tiêu đề hoặc Hook mới&gt;</code>\n\n"
+                f"<i>Hoặc gọi REST API để cập nhật chi tiết từng nền tảng:</i>\n"
+                f"<code>POST /api/jobs/{job.id}/revisions</code>",
+            )
+
     return WebhookResponse(ok=True, message="Callback handled")
+
+
+# ==============================================================================
+# LARGE VIDEO DIRECT UPLOAD ENDPOINT (> 20MB)
+# ==============================================================================
+
+@app.post("/upload/large-video", response_model=WebhookResponse)
+async def upload_large_video(
+    file: UploadFile = File(...),
+    chat_id: int = Form(...),
+    user_id: int = Form(...),
+    caption: str | None = Form(None),
+    _auth: None = Depends(verify_automation_secret),
+    db: AsyncSession = Depends(get_db),
+):
+    """Direct video upload endpoint for files > 20MB exceeding Telegram Bot API getFile limits."""
+    if not settings.is_user_allowed(user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User not in allowlist",
+        )
+
+    file_bytes = await file.read()
+    if not storage_service.is_valid_video_header(file_bytes[:32]):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Tệp tải lên không phải là định dạng video hợp lệ (MIME header mismatch)",
+        )
+
+    clean_filename = file.filename or "large_video.mp4"
+    dest_path, checksum = await storage_service.save_raw_video(file_bytes, clean_filename)
+
+    meta = ffmpeg_service.probe_video(dest_path)
+
+    job = Job(
+        telegram_chat_id=chat_id,
+        telegram_user_id=user_id,
+        source_file_id=f"direct_upload_{checksum[:12]}",
+        source_file_name=clean_filename,
+        source_file_path=dest_path,
+        file_checksum=checksum,
+        video_duration=meta["duration"],
+        video_width=meta["width"],
+        video_height=meta["height"],
+        video_fps=meta["fps"],
+        status=JobStatus.PENDING.value,
+    )
+    db.add(job)
+    await db.commit()
+    await db.refresh(job)
+
+    file_size_mb = round(len(file_bytes) / (1024 * 1024), 1)
+    await telegram_service.send_message(
+        chat_id,
+        f"📥 <b>ĐÃ TIẾP NHẬN VIDEO LỚN TRỰC TIẾP (&gt;20MB)</b>\n"
+        f"🆔 Job ID: <code>{job.id}</code>\n"
+        f"⏱️ Thời lượng: {int(meta['duration'])}s | Dung lượng: {file_size_mb} MB\n"
+        f"⚡ Đã đưa vào hàng đợi xử lý AI & Video Studio...",
+    )
+    return WebhookResponse(ok=True, message="Large video enqueued", job_id=job.id)
 
 
 # ==============================================================================
 # REST API ENDPOINTS FOR JOB INSPECTION & REVISION
 # ==============================================================================
+
+@app.get("/api/jobs", response_model=list[JobDetailResponse])
+async def list_jobs(
+    status_filter: str | None = Query(None, alias="status"),
+    limit: int = Query(20, ge=1, le=100),
+    db: AsyncSession = Depends(get_db),
+):
+    """List recent jobs with optional status filter."""
+    stmt = select(Job).order_by(desc(Job.created_at)).limit(limit)
+    if status_filter:
+        stmt = stmt.where(Job.status == status_filter.upper())
+    res = await db.execute(stmt)
+    return res.scalars().all()
+
 
 @app.get("/api/jobs/{job_id}", response_model=JobDetailResponse)
 async def get_job_detail(job_id: str, db: AsyncSession = Depends(get_db)):

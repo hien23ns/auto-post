@@ -52,7 +52,8 @@ pytest -v
 
 ### Bước 4: Khởi chạy FastAPI Backend
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+# Sử dụng cổng 8001 (tránh xung đột với cổng 8000 đã có trên máy/VPS)
+uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload
 ```
 
 ### Bước 5: Khởi chạy Background Worker
