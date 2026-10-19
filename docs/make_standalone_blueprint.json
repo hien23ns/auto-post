@@ -1,220 +1,327 @@
 {
-  "name": "AI Auto Video Publisher 24/7 - Make Standalone Scenario",
-  "description": "Kịch bản Make.com chạy 24/7 độc lập không cần VPS: Telegram Bot -> Gemini 2.5 Flash -> Duyệt bài -> Đăng Fanpage Reels & YouTube Shorts",
-  "version": 1,
-  "flow": [
-    {
-      "id": 1,
-      "module": "telegram:watchUpdates",
-      "version": 1,
-      "parameters": {
-        "limit": 10
-      },
-      "filter": {
-        "name": "Chi nhan Video hoac Callback",
-        "conditions": [
-          [
-            {
-              "a": "{{1.message.video.file_id}}",
-              "o": "exists"
-            }
-          ],
-          [
-            {
-              "a": "{{1.callback_query.data}}",
-              "o": "exists"
-            }
-          ]
-        ]
-      },
-      "mapper": {},
-      "metadata": {
-        "designer": {
-          "x": -450,
-          "y": 0,
-          "name": "1. Telegram: Watch Updates"
-        }
-      }
-    },
-    {
-      "id": 2,
-      "module": "gateway:Router",
-      "version": 1,
-      "metadata": {
-        "designer": {
-          "x": -200,
-          "y": 0,
-          "name": "2. Phân loại sự kiện"
-        }
-      },
-      "routes": [
+    "name": "AI Auto Video Publisher 24/7 - Make Standalone Scenario",
+    "flow": [
         {
-          "flow": [
-            {
-              "id": 3,
-              "module": "telegram:getFile",
-              "version": 1,
-              "parameters": {},
-              "mapper": {
-                "file_id": "{{1.message.video.file_id}}"
-              },
-              "metadata": {
-                "designer": {
-                  "x": 50,
-                  "y": -120,
-                  "name": "3. Lấy link tải Video"
-                }
-              }
+            "id": 12,
+            "module": "telegram:WatchUpdates",
+            "version": 1,
+            "parameters": {
+                "__IMTHOOK__": 2956194
             },
-            {
-              "id": 4,
-              "module": "http:ActionMakeRequest",
-              "version": 3,
-              "parameters": {
-                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
-                "method": "POST",
-                "headers": [
-                  {
-                    "name": "Content-Type",
-                    "value": "application/json"
-                  }
-                ],
-                "qs": [
-                  {
-                    "name": "key",
-                    "value": "{{var.gemini_api_key}}"
-                  }
-                ],
-                "bodyType": "raw",
-                "rawType": "json",
-                "data": "{\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Bạn là chuyên gia Social Media tiếng Việt. Phân tích video và tạo nội dung cho 3 nền tảng: YouTube Shorts, Facebook Fanpage Reels, TikTok. Xuất đúng định dạng JSON: {\\\"youtube\\\": {\\\"title\\\": \\\"...\\\", \\\"caption\\\": \\\"...\\\", \\\"tags\\\": [\\\"#Shorts\\\", \\\"#XuHuong\\\"]}, \\\"facebook\\\": {\\\"caption\\\": \\\"...\\\", \\\"tags\\\": [\\\"#ReelsVN\\\"]}, \\\"tiktok\\\": {\\\"hook\\\": \\\"...\\\", \\\"tags\\\": [\\\"#fyp\\\"]}}\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"response_mime_type\": \"application/json\",\n    \"temperature\": 0.2\n  }\n}"
-              },
-              "metadata": {
-                "designer": {
-                  "x": 300,
-                  "y": -120,
-                  "name": "4. Gemini 2.5 Flash: Phân tích & Viết nội dung"
-                }
-              }
-            },
-            {
-              "id": 5,
-              "module": "json:ParseJSON",
-              "version": 1,
-              "parameters": {
-                "type": "string"
-              },
-              "mapper": {
-                "json": "{{4.data.candidates[1].content.parts[1].text}}"
-              },
-              "metadata": {
-                "designer": {
-                  "x": 550,
-                  "y": -120,
-                  "name": "5. Đọc JSON từ Gemini"
-                }
-              }
-            },
-            {
-              "id": 6,
-              "module": "telegram:sendMessage",
-              "version": 1,
-              "parameters": {},
-              "mapper": {
-                "chat_id": "{{1.message.chat.id}}",
-                "parse_mode": "HTML",
-                "text": "🎬 <b>BẢN NHÁP VIDEO ĐÃ SẴN SÀNG (MAKE.COM 24/7)</b>\n\n🔴 <b>YOUTUBE SHORTS:</b>\n• <b>Tiêu đề:</b> {{5.youtube.title}}\n• <b>Tags:</b> {{5.youtube.tags}}\n\n🔵 <b>FACEBOOK REELS:</b>\n• <b>Caption:</b> {{5.facebook.caption}}\n\n🎵 <b>TIKTOK:</b>\n• <b>Hook:</b> {{5.tiktok.hook}}\n\n👇 <i>Nhấn 'DUYỆT ĐĂNG NGAY' để xuất bản lên Fanpage và YouTube:</i>",
-                "reply_markup": {
-                  "inline_keyboard": [
+            "filter": {
+                "name": "Chi nhan Video hoac Callback",
+                "conditions": [
                     [
-                      {
-                        "text": "🚀 DUYỆT ĐĂNG NGAY",
-                        "callback_data": "publish:now:{{1.message.video.file_id}}"
-                      },
-                      {
-                        "text": "❌ HỦY",
-                        "callback_data": "cancel"
-                      }
+                        {
+                            "a": "{{12.message.video.file_id}}",
+                            "o": "exists"
+                        }
+                    ],
+                    [
+                        {
+                            "a": "{{12.callback_query.data}}",
+                            "o": "exists"
+                        }
                     ]
-                  ]
-                }
-              },
-              "metadata": {
+                ]
+            },
+            "mapper": {},
+            "metadata": {
                 "designer": {
-                  "x": 800,
-                  "y": -120,
-                  "name": "6. Gửi bản nháp & Nút duyệt về Telegram"
-                }
-              }
+                    "x": -670,
+                    "y": 0,
+                    "name": "1. Telegram: Watch Updates"
+                },
+                "restore": {
+                    "parameters": {
+                        "__IMTHOOK__": {
+                            "label": "My Telegram Bot Updates webhook",
+                            "data": {
+                                "editable": "false"
+                            }
+                        }
+                    }
+                },
+                "parameters": [
+                    {
+                        "name": "__IMTHOOK__",
+                        "type": "hook:telegramapi",
+                        "label": "Webhook",
+                        "required": true
+                    }
+                ]
             }
-          ]
         },
         {
-          "flow": [
-            {
-              "id": 7,
-              "module": "telegram:answerCallbackQuery",
-              "version": 1,
-              "parameters": {},
-              "mapper": {
-                "callback_query_id": "{{1.callback_query.id}}",
-                "text": "Đang bắt đầu xuất bản video lên Fanpage và YouTube..."
-              },
-              "metadata": {
+            "id": 2,
+            "module": "builtin:BasicRouter",
+            "version": 1,
+            "mapper": null,
+            "metadata": {
                 "designer": {
-                  "x": 50,
-                  "y": 140,
-                  "name": "7. Phản hồi bấm nút Duyệt"
+                    "x": -390,
+                    "y": 0,
+                    "name": "2. Phân loại sự kiện"
                 }
-              }
             },
-            {
-              "id": 8,
-              "module": "http:ActionMakeRequest",
-              "version": 3,
-              "parameters": {
-                "url": "https://graph.facebook.com/v19.0/{{var.facebook_page_id}}/video_reels",
-                "method": "POST",
-                "qs": [
-                  {
-                    "name": "upload_phase",
-                    "value": "start"
-                  },
-                  {
-                    "name": "access_token",
-                    "value": "{{var.facebook_page_token}}"
-                  }
-                ]
-              },
-              "metadata": {
-                "designer": {
-                  "x": 300,
-                  "y": 140,
-                  "name": "8. Facebook Graph: Khởi tạo Reel"
+            "routes": [
+                {
+                    "flow": [
+                        {
+                            "id": 7,
+                            "module": "telegram:DownloadFile",
+                            "version": 1,
+                            "parameters": {
+                                "__IMTCONN__": 11730638
+                            },
+                            "filter": {
+                                "name": "Nhánh 1: Nhận Video mới",
+                                "conditions": [
+                                    [
+                                        {
+                                            "a": "{{12.message.video.file_id}}",
+                                            "o": "exists"
+                                        }
+                                    ]
+                                ]
+                            },
+                            "mapper": {
+                                "fileId": "{{12.message.video.file_id}}"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": -50,
+                                    "y": -160,
+                                    "name": "3. Lấy thông tin Video"
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "label": "Văn's Telegram Bot connection",
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "telegram"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "id": 8,
+                            "module": "http:MakeRequest",
+                            "version": 4,
+                            "parameters": {
+                                "authenticationType": "none"
+                            },
+                            "mapper": {
+                                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
+                                "method": "post",
+                                "headers": [
+                                    {
+                                        "name": "Content-Type",
+                                        "value": "application/json"
+                                    }
+                                ],
+                                "jsonStringBodyContent": "{\n  \"contents\": [{\n    \"parts\": [{\n      \"text\": \"Bạn là chuyên gia Social Media tiếng Việt. Hãy tạo nội dung video cho 3 nền tảng: YouTube Shorts, Facebook Fanpage Reels, TikTok. Xuất đúng định dạng JSON: {\\\"youtube\\\": {\\\"title\\\": \\\"...\\\", \\\"caption\\\": \\\"...\\\", \\\"tags\\\": [\\\"#Shorts\\\", \\\"#XuHuong\\\"]}, \\\"facebook\\\": {\\\"caption\\\": \\\"...\\\", \\\"tags\\\": [\\\"#ReelsVN\\\"]}, \\\"tiktok\\\": {\\\"hook\\\": \\\"...\\\", \\\"tags\\\": [\\\"#fyp\\\"]}}\"\n    }]\n  }],\n  \"generationConfig\": {\n    \"response_mime_type\": \"application/json\",\n    \"temperature\": 0.2\n  }\n}",
+                                "parseResponse": true
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 260,
+                                    "y": -160,
+                                    "name": "4. Gemini: Viết nội dung 3 nền tảng"
+                                }
+                            }
+                        },
+                        {
+                            "id": 5,
+                            "module": "json:ParseJSON",
+                            "version": 1,
+                            "parameters": {
+                                "type": "string"
+                            },
+                            "mapper": {
+                                "json": "{{8.body.candidates[1].content.parts[1].text}}"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 550,
+                                    "y": -160,
+                                    "name": "5. Đọc JSON từ Gemini"
+                                }
+                            }
+                        },
+                        {
+                            "id": 6,
+                            "module": "telegram:SendReplyMessage",
+                            "version": 1,
+                            "parameters": {
+                                "__IMTCONN__": 11730638
+                            },
+                            "mapper": {
+                                "chatId": "{{12.message.chat.id}}",
+                                "parse_mode": "HTML",
+                                "text": "🎬 <b>BẢN NHÁP VIDEO ĐÃ SẴN SÀNG (MAKE.COM 24/7)</b>\n\n🔴 <b>YOUTUBE SHORTS:</b>\n• <b>Tiêu đề:</b> {{5.youtube.title}}\n• <b>Tags:</b> {{5.youtube.tags}}\n\n🔵 <b>FACEBOOK REELS:</b>\n• <b>Caption:</b> {{5.facebook.caption}}\n\n🎵 <b>TIKTOK:</b>\n• <b>Hook:</b> {{5.tiktok.hook}}\n\n👇 <i>Nhấn 'DUYỆT ĐĂNG NGAY' để xuất bản lên Fanpage:</i>",
+                                "reply_markup": {
+                                    "inline_keyboard": [
+                                        [
+                                            {
+                                                "text": "🚀 DUYỆT ĐĂNG NGAY",
+                                                "callback_data": "publish:now:{{12.message.video.file_id}}"
+                                            },
+                                            {
+                                                "text": "❌ HỦY",
+                                                "callback_data": "cancel"
+                                            }
+                                        ]
+                                    ]
+                                }
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 840,
+                                    "y": -160,
+                                    "name": "6. Gửi bản nháp & Nút duyệt"
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "label": "Văn's Telegram Bot connection",
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "telegram"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ]
+                },
+                {
+                    "flow": [
+                        {
+                            "id": 13,
+                            "module": "telegram:SendReplyMessage",
+                            "version": 1,
+                            "parameters": {
+                                "__IMTCONN__": 11730638
+                            },
+                            "filter": {
+                                "name": "Nhánh 2: Bấm nút Duyệt/Hủy",
+                                "conditions": [
+                                    [
+                                        {
+                                            "a": "{{12.callback_query.data}}",
+                                            "o": "exists"
+                                        }
+                                    ]
+                                ]
+                            },
+                            "mapper": {
+                                "chatId": "{{12.callback_query.from.id}}",
+                                "text": "⏳ <b>Đang tiến hành xuất bản video lên Facebook Fanpage Reels...</b>",
+                                "parse_mode": "HTML"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": -50,
+                                    "y": 180,
+                                    "name": "7. Phản hồi bấm nút Duyệt"
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "label": "Văn's Telegram Bot connection",
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "telegram"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "id": 14,
+                            "module": "http:MakeRequest",
+                            "version": 4,
+                            "parameters": {
+                                "authenticationType": "none"
+                            },
+                            "mapper": {
+                                "url": "https://graph.facebook.com/v19.0/YOUR_FACEBOOK_PAGE_ID/video_reels",
+                                "method": "post",
+                                "qs": [
+                                    {
+                                        "name": "upload_phase",
+                                        "value": "start"
+                                    },
+                                    {
+                                        "name": "access_token",
+                                        "value": "YOUR_FACEBOOK_PAGE_ACCESS_TOKEN"
+                                    }
+                                ]
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 260,
+                                    "y": 180,
+                                    "name": "8. Facebook Graph: Khởi tạo Reel"
+                                }
+                            }
+                        },
+                        {
+                            "id": 15,
+                            "module": "telegram:SendReplyMessage",
+                            "version": 1,
+                            "parameters": {
+                                "__IMTCONN__": 11730638
+                            },
+                            "mapper": {
+                                "chatId": "{{12.callback_query.from.id}}",
+                                "parse_mode": "HTML",
+                                "text": "🎉 <b>ĐÃ XUẤT BẢN THÀNH CÔNG (MAKE 24/7)!</b>\n\n✅ Facebook Fanpage: Đã nộp video lên Fanpage Reels thành công!\n✅ Trạng thái: <b>ĐÃ LÊN SÓNG</b>"
+                            },
+                            "metadata": {
+                                "designer": {
+                                    "x": 550,
+                                    "y": 180,
+                                    "name": "9. Báo cáo kết quả thành công"
+                                },
+                                "restore": {
+                                    "parameters": {
+                                        "__IMTCONN__": {
+                                            "label": "Văn's Telegram Bot connection",
+                                            "data": {
+                                                "scoped": "true",
+                                                "connection": "telegram"
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    ]
                 }
-              }
-            },
-            {
-              "id": 9,
-              "module": "telegram:sendMessage",
-              "version": 1,
-              "parameters": {},
-              "mapper": {
-                "chat_id": "{{1.callback_query.from.id}}",
-                "parse_mode": "HTML",
-                "text": "🎉 <b>ĐÃ XUẤT BẢN THÀNH CÔNG (MAKE 24/7)!</b>\n\n✅ Facebook Fanpage: Đã nộp Reel lên Page ID <code>{{var.facebook_page_id}}</code>\n✅ Trạng thái: <b>ĐÃ LÊN SÓNG</b>"
-              },
-              "metadata": {
-                "designer": {
-                  "x": 550,
-                  "y": 140,
-                  "name": "9. Báo cáo kết quả thành công"
-                }
-              }
-            }
-          ]
+            ]
         }
-      ]
+    ],
+    "metadata": {
+        "instant": true,
+        "version": 1,
+        "scenario": {
+            "roundtrips": 1,
+            "maxErrors": 3,
+            "autoCommit": true,
+            "sequential": true,
+            "slots": null
+        },
+        "designer": {
+            "orphans": []
+        },
+        "zone": "us2.make.com",
+        "notes": []
     }
-  ]
 }
