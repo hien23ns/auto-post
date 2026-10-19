@@ -115,7 +115,7 @@
                                 "authenticationType": "none"
                             },
                             "mapper": {
-                                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=YOUR_GEMINI_API_KEY",
+                                "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=YOUR_GEMINI_API_KEY",
                                 "method": "post",
                                 "headers": [
                                     {
@@ -251,7 +251,7 @@
                                 "authenticationType": "none"
                             },
                             "mapper": {
-                                "url": "https://graph.facebook.com/v19.0/YOUR_FACEBOOK_PAGE_ID/video_reels",
+                                "url": "https://graph.facebook.com/v19.0/1371019702763205/video_reels",
                                 "method": "post",
                                 "qs": [
                                     {

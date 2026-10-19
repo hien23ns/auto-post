@@ -30,6 +30,8 @@ MANIFEST
 .env
 .env.local
 .env.*.local
+*_configured.json
+*configured*.json
 venv/
 .venv/
 env/
