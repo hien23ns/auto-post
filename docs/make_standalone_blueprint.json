@@ -38,7 +38,7 @@
     },
     {
       "id": 2,
-      "module": "builtin:router",
+      "module": "gateway:Router",
       "version": 1,
       "metadata": {
         "designer": {
@@ -68,7 +68,7 @@
             },
             {
               "id": 4,
-              "module": "http:ActionSendARequest",
+              "module": "http:ActionMakeRequest",
               "version": 3,
               "parameters": {
                 "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent",
@@ -170,7 +170,7 @@
             },
             {
               "id": 8,
-              "module": "http:ActionSendARequest",
+              "module": "http:ActionMakeRequest",
               "version": 3,
               "parameters": {
                 "url": "https://graph.facebook.com/v19.0/{{var.facebook_page_id}}/video_reels",
