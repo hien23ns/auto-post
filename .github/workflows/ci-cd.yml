@@ -42,13 +42,13 @@ jobs:
       - name: Run Test Suite
         env:
           ENV: test
-          AUTOMATION_SECRET: test-secret-key-for-ci-pipeline-1234
-          TELEGRAM_BOT_TOKEN: 123456789:test-bot-token
-          TELEGRAM_ALLOWED_USERS: 123456789
-          DATABASE_URL: sqlite+aiosqlite:///:memory:
+          AUTOMATION_SECRET: "test-secret-key-for-ci-pipeline-1234"
+          TELEGRAM_BOT_TOKEN: "123456789:test-bot-token"
+          TELEGRAM_ALLOWED_USERS: "123456789"
+          DATABASE_URL: "sqlite+aiosqlite:///:memory:"
           PREVIEW_ONLY: "true"
         run: |
-          pytest -q --cov=app tests/
+          pytest -q tests/
 
   docker-verify:
     name: Docker Compose Validation
