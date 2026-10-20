@@ -142,7 +142,7 @@
                                 "type": "string"
                             },
                             "mapper": {
-                                "json": "{{8.body.candidates[1].content.parts[1].text}}"
+                                "json": "{{ifempty(8.data.candidates[1].content.parts[1].text, 8.body.candidates[1].content.parts[1].text)}}"
                             },
                             "metadata": {
                                 "designer": {
